@@ -20,14 +20,14 @@ class MediaCategorizer:
         r'^(?P<show>.+?)[\. ](?P<season>\d{1,2})x(?P<episode>\d{1,2})'
     ]
     
-    def __init__(self, config_manager, notification_service: NotificationService):
+    def __init__(self, config: Dict[str, Any], notification_service: NotificationService):
         """Initialize categorizer."""
-        self.config_manager = config_manager
+        self.config = config
         self.logger = logging.getLogger("MediaCategorizer")
         self.notification = notification_service
         
         # Validate TMDB API key
-        tmdb_api_key = self.config_manager["tmdb"]["api_key"]
+        tmdb_api_key = config.get("tmdb", {}).get("api_key")
         if not tmdb_api_key or tmdb_api_key == "YOUR_TMDB_API_KEY":
             self.logger.error("TMDB API key not configured")
             self.tmdb = None
@@ -141,7 +141,7 @@ class MediaCategorizer:
             
             # Create destination path
             movie_dir = os.path.join(
-                self.config_manager["paths"]["movies_dir"],
+                self.config["paths"]["movies_dir"],
                 f"{movie_info['title']} ({movie_info['release_date'][:4]})"
             )
             os.makedirs(movie_dir, exist_ok=True)
@@ -201,7 +201,7 @@ class MediaCategorizer:
                 return False
                 
             # Create destination path
-            tv_dir = self.config_manager["paths"]["tv_shows_dir"]
+            tv_dir = self.config["paths"]["tv_shows_dir"]
             show_dir = os.path.join(tv_dir, show_info["name"])
             season_dir = os.path.join(show_dir, f"Season {season:02d}")
             os.makedirs(season_dir, exist_ok=True)
@@ -228,7 +228,7 @@ class MediaCategorizer:
     async def move_to_unmatched(self, file_path: str) -> None:
         """Move file to unmatched directory."""
         try:
-            unmatched_dir = self.config_manager["paths"]["unmatched_dir"]
+            unmatched_dir = self.config["paths"]["unmatched_dir"]
             os.makedirs(unmatched_dir, exist_ok=True)
             
             new_path = os.path.join(unmatched_dir, os.path.basename(file_path))

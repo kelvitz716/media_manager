@@ -66,17 +66,12 @@ class ConfigManager:
             os.makedirs(os.path.dirname(os.path.abspath(self.config_path)), exist_ok=True)
             with open(self.config_path, 'w') as f:
                 json.dump(DEFAULT_CONFIG, f, indent=4)
-            logger.info(f"Created default configuration file at {self.config_path}")
-            return DEFAULT_CONFIG.copy()
+            print(f"Created default configuration at {self.config_path}")
+            print("Please edit this file with your Telegram API credentials")
+            return DEFAULT_CONFIG
 
-        try:
-            with open(self.config_path, 'r') as f:
-                config = json.load(f)
-            logger.debug("Successfully loaded configuration file")
-            return config
-        except Exception as e:
-            logger.error(f"Error loading config: {e}, using defaults")
-            return DEFAULT_CONFIG.copy()
+        with open(self.config_path, 'r') as f:
+            return json.load(f)
 
     def _validate_config(self) -> None:
         """Validate configuration and set defaults."""
@@ -84,14 +79,12 @@ class ConfigManager:
         for section in DEFAULT_CONFIG:
             if section not in self.config:
                 self.config[section] = DEFAULT_CONFIG[section].copy()
-                logger.debug(f"Added missing section: {section}")
 
-        # Validate all sections
+        # Validate telegram settings
         self._validate_telegram()
         self._validate_paths()
         self._validate_download()
         self._validate_notification()
-        self._validate_tmdb()
         
         # Save validated config
         self._save_config()
@@ -104,7 +97,6 @@ class ConfigManager:
         # Ensure required fields exist with proper types
         if not isinstance(telegram_config.get("enabled"), bool):
             telegram_config["enabled"] = defaults["enabled"]
-            
         if not isinstance(telegram_config.get("flood_sleep_threshold"), int):
             telegram_config["flood_sleep_threshold"] = defaults["flood_sleep_threshold"]
         
@@ -118,26 +110,17 @@ class ConfigManager:
         paths_config = self.config["paths"]
         defaults = DEFAULT_CONFIG["paths"]
         
-        # Ensure all path settings exist
         for path in defaults:
             if path not in paths_config:
                 paths_config[path] = defaults[path]
-                logger.debug(f"Added missing path setting: {path}")
-            
-        # Convert relative paths to absolute
-        base_dir = os.path.dirname(os.path.abspath(self.config_path))
-        for key, path in paths_config.items():
-            if not os.path.isabs(path):
-                paths_config[key] = os.path.join(base_dir, path)
 
     def _validate_download(self) -> None:
         """Validate download configuration."""
         download_config = self.config["download"]
         defaults = DEFAULT_CONFIG["download"]
         
-        # Validate numeric settings
-        for key in ["max_concurrent_downloads", "speed_limit", "chunk_size"]:
-            if key not in download_config or not isinstance(download_config[key], (int, float)):
+        for key in defaults:
+            if key not in download_config:
                 download_config[key] = defaults[key]
 
     def _validate_notification(self) -> None:
@@ -150,31 +133,10 @@ class ConfigManager:
             
         if "method" not in notification_config:
             notification_config["method"] = defaults["method"]
-            
+
+        # Don't override notification bot token if it's already set
         if not notification_config.get("bot_token"):
             notification_config["bot_token"] = defaults["bot_token"]
-
-    def _validate_tmdb(self) -> None:
-        """Validate TMDB configuration."""
-        if "tmdb" not in self.config:
-            self.config["tmdb"] = DEFAULT_CONFIG["tmdb"].copy()
-            logger.debug("Added missing TMDB configuration section")
-            return
-            
-        tmdb_config = self.config["tmdb"]
-        defaults = DEFAULT_CONFIG["tmdb"]
-        
-        # Validate API key
-        if not isinstance(tmdb_config.get("api_key"), str):
-            tmdb_config["api_key"] = defaults["api_key"]
-            
-        # Validate language
-        if not isinstance(tmdb_config.get("language"), str):
-            tmdb_config["language"] = defaults["language"]
-            
-        # Validate include_adult setting
-        if not isinstance(tmdb_config.get("include_adult"), bool):
-            tmdb_config["include_adult"] = defaults["include_adult"]
 
     def _sync_credentials(self) -> None:
         """Synchronize credentials across sections."""
@@ -192,12 +154,8 @@ class ConfigManager:
 
     def _save_config(self) -> None:
         """Save current configuration to file."""
-        try:
-            with open(self.config_path, 'w') as f:
-                json.dump(self.config, f, indent=4)
-            logger.debug("Successfully saved configuration")
-        except Exception as e:
-            logger.error(f"Error saving config: {e}")
+        with open(self.config_path, 'w') as f:
+            json.dump(self.config, f, indent=4)
 
     def __getitem__(self, key: str) -> Any:
         """Get configuration section."""
