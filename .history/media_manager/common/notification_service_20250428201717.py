@@ -29,6 +29,12 @@ class NotificationService:
     async def stop(self) -> None:
         """Stop the notification service."""
         self._running = False
+        if self._polling_task:
+            self._polling_task.cancel()
+            try:
+                await self._polling_task
+            except asyncio.CancelledError:
+                pass
         if self.application:
             await self.application.stop()
             await self.application.shutdown()
@@ -56,12 +62,14 @@ class NotificationService:
                 self._handle_message_response
             ))
 
-            # Initialize and start application without blocking
+            # Initialize application
             await self.application.initialize()
             await self.application.start()
             
-            # Just start update polling without running forever
-            await self.application.updater.start_polling()
+            # Start polling in background task
+            self._polling_task = asyncio.create_task(
+                self.application.run_polling(allowed_updates=Update.ALL_TYPES)
+            )
 
         except Exception as e:
             logger.error(f"Failed to initialize Telegram bot: {e}")

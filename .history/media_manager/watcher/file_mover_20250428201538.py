@@ -12,7 +12,13 @@ class MediaFileHandler(FileSystemEventHandler):
     """Handles file system events for media files."""
     
     def __init__(self, categorizer: MediaCategorizer, loop: asyncio.AbstractEventLoop):
-        """Initialize file handler."""
+        """
+        Initialize file handler.
+        
+        Args:
+            categorizer: Media categorizer instance
+            loop: Event loop to use for async operations
+        """
         self.categorizer = categorizer
         self.logger = logging.getLogger("MediaFileHandler")
         self._processing_files: Set[str] = set()
@@ -82,28 +88,28 @@ class MediaFileHandler(FileSystemEventHandler):
 class MediaWatcher:
     """Watches download directory for new media files."""
     
-    def __init__(self, config_manager, notification_service: NotificationService, categorizer: MediaCategorizer = None):
+    def __init__(self, config: Dict[str, Any], notification_service: NotificationService, categorizer: MediaCategorizer = None):
         """
         Initialize watcher.
         
         Args:
-            config_manager: Configuration manager instance
+            config: Application configuration
             notification_service: Notification service instance
             categorizer: Optional MediaCategorizer instance for testing
         """
-        self.config_manager = config_manager
+        self.config = config
         self.logger = logging.getLogger("MediaWatcher")
         self.notification = notification_service
         self._loop = asyncio.get_event_loop()
         
         # Initialize components
-        self.categorizer = categorizer if categorizer is not None else MediaCategorizer(config_manager, notification_service)
+        self.categorizer = categorizer if categorizer is not None else MediaCategorizer(config, notification_service)
         self.handler = MediaFileHandler(self.categorizer, self._loop)
         self.observer = Observer()
         
     async def start(self) -> None:
         """Start watching for new files."""
-        watch_dir = self.config_manager["paths"]["telegram_download_dir"]
+        watch_dir = self.config["paths"]["telegram_download_dir"]
         
         if not os.path.exists(watch_dir):
             os.makedirs(watch_dir)
@@ -113,7 +119,7 @@ class MediaWatcher:
         self.logger.info(f"Started watching directory: {watch_dir}")
         
         # Process existing files if configured
-        if self.config_manager["download"].get("process_existing_files", False):
+        if self.config.get("process_existing_files", False):
             for filename in os.listdir(watch_dir):
                 file_path = os.path.join(watch_dir, filename)
                 if os.path.isfile(file_path):

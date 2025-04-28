@@ -45,9 +45,6 @@ class MediaManager:
     async def _shutdown(self) -> None:
         """Perform graceful shutdown."""
         try:
-            # Stop notification service
-            await self.notification.stop()
-            
             # Stop components
             await self.downloader.stop()
             self.watcher.stop()
@@ -67,14 +64,9 @@ class MediaManager:
                 os.makedirs(path, exist_ok=True)
             
             # Start components
-            await self.notification.start()
-            await self.watcher.start()
+            self.watcher.start()
             await self.downloader.start()
             
-            # Keep running until stopped
-            while True:
-                await asyncio.sleep(1)
-                
         except Exception as e:
             self.logger.error(f"Error starting Media Manager: {e}")
             await self._shutdown()
@@ -84,12 +76,10 @@ def main() -> None:
     manager = MediaManager()
     
     # Run event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(manager.start())
-    except KeyboardInterrupt:
-        loop.run_until_complete(manager._shutdown())
+        loop.run_forever()
     except Exception as e:
         logging.error(f"Fatal error: {e}")
     finally:
