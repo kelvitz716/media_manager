@@ -2071,7 +2071,7 @@ class TelegramDownloader:
     async def _shutdown(self) -> None:
         """Shutdown all components."""
         try:
-            # Save stats before stopping
+                       # Save stats before stopping
             await self.download_manager.stats_manager.save_stats()
             logger.info("Saving stats before shutdown")
 

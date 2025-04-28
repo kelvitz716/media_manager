@@ -24,7 +24,6 @@ from collections import deque
 from telebot.async_telebot import AsyncTeleBot
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, AuthKeyError, SessionPasswordNeededError
-from media_manager.watcher.categorizer import MediaCategorizer
 
 # Configuration constants
 CONFIG_FILE = "config.json"
@@ -2072,6 +2071,7 @@ class TelegramDownloader:
         """Shutdown all components."""
         try:
             # Save stats before stopping
+            await self.download_manager.stats_manager```python
             await self.download_manager.stats_manager.save_stats()
             logger.info("Saving stats before shutdown")
 
@@ -2128,6 +2128,7 @@ class TelegramDownloader:
         finally:
             print("Bot stopped")
 
+
 async def run_async():
     """Run the application asynchronously."""
     downloader = TelegramDownloader()
@@ -2155,3 +2156,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
