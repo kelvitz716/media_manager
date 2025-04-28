@@ -1,0 +1,23 @@
+media_manager/
+├── main.py                 # Main entry point, launches processes
+├── config.json             # Shared configuration
+├── common/                 # Shared components
+│   ├── __init__.py
+│   ├── config_manager.py
+│   ├── logger_setup.py
+│   ├── notification_service.py # Handles both notifications and commands
+│   └── rate_limiters.py
+├── downloader/             # Telegram Downloader components
+│   ├── __init__.py
+│   ├── bot.py                # Core downloader logic (asyncio)
+│   └── run_downloader.py     # Script to run just the downloader process
+├── watcher/                # File Watcher/Processor components
+│   ├── __init__.py
+│   ├── categorizer.py        # File processing logic (blocking/threaded)
+│   ├── file_mover.py
+│   ├── tmdb_client.py
+│   ├── manual_categorizer.py # Handles manual interaction via notifications
+│   └── run_watcher.py        # Script to run just the watcher process
+├── requirements.txt
+└── media_watcher.log
+└── download_stats.json

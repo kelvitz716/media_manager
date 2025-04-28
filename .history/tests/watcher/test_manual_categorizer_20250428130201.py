@@ -1,0 +1,178 @@
+"""Tests for manual media categorization."""
+import os
+import tempfile
+from unittest import IsolatedAsyncioTestCase, mock
+from media_manager.common.notification_service import NotificationService
+from media_manager.watcher.manual_categorizer import ManualCategorizer
+from media_manager.watcher.categorizer import MediaCategorizer
+
+class TestManualCategorizer(IsolatedAsyncioTestCase):
+    """Test cases for ManualCategorizer."""
+    
+    async def asyncSetUp(self):
+        """Set up test environment."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "paths": {
+                "movies_dir": os.path.join(self.temp_dir, "movies"),
+                "tv_shows_dir": os.path.join(self.temp_dir, "tv_shows"),
+                "unmatched_dir": os.path.join(self.temp_dir, "unmatched")
+            },
+            "tmdb": {
+                "api_key": "test_api_key"
+            }
+        }
+        # Create directories
+        for path in self.config["paths"].values():
+            os.makedirs(path)
+            
+        self.notification = mock.AsyncMock(spec=NotificationService)
+        self.categorizer = mock.AsyncMock(spec=MediaCategorizer)
+        self.manual = ManualCategorizer(
+            self.config,
+            self.notification,
+            self.categorizer
+        )
+        
+    async def asyncTearDown(self):
+        """Clean up test environment."""
+        if os.path.exists(self.temp_dir):
+            import shutil
+            shutil.rmtree(self.temp_dir)
+            
+    def test_get_unmatched_files(self):
+        """Test getting list of unmatched files."""
+        # Create test files
+        files = ["test1.mp4", "test2.mkv", "test3.avi"]
+        for file in files:
+            path = os.path.join(self.config["paths"]["unmatched_dir"], file)
+            with open(path, "wb") as f:
+                f.write(b"test content")
+                
+        # Get unmatched files
+        result = self.manual._get_unmatched_files()
+        
+        # Verify results
+        self.assertEqual(len(result), 3)
+        self.assertTrue(all(
+            os.path.basename(f) in files 
+            for f in result
+        ))
+        
+    async def test_start_categorization(self):
+        """Test starting categorization session."""
+        # Create test file
+        test_file = os.path.join(
+            self.config["paths"]["unmatched_dir"],
+            "test.mp4"
+        )
+        with open(test_file, "wb") as f:
+            f.write(b"test content")
+            
+        # Mock notification response
+        self.notification.wait_for_response.return_value = "1"  # Movie
+        
+        # Start categorization
+        await self.manual._start_categorization(test_file)
+        
+        # Verify prompt was sent
+        self.notification.wait_for_response.assert_called_once()
+        prompt = self.notification.wait_for_response.call_args[0][0]
+        self.assertIn("What type of media is this?", prompt)
+        
+        # Verify session was created
+        async with self.manual._session_lock:
+            self.assertIn(test_file, self.manual._active_sessions)
+            self.assertEqual(
+                self.manual._active_sessions[test_file]["metadata"]["type"],
+                "movie"
+            )
+            
+    async def test_process_movie_details(self):
+        """Test processing movie details."""
+        test_file = os.path.join(
+            self.config["paths"]["unmatched_dir"],
+            "test.mp4"
+        )
+        
+        # Set up session
+        async with self.manual._session_lock:
+            self.manual._active_sessions[test_file] = {
+                "stage": "details",
+                "metadata": {"type": "movie"}
+            }
+            
+        # Mock notification responses
+        self.notification.wait_for_response.side_effect = [
+            "The Movie",  # Title
+            "2024"       # Year
+        ]
+        
+        # Get movie details
+        await self.manual._get_movie_details(test_file)
+        
+        # Verify metadata was updated
+        async with self.manual._session_lock:
+            metadata = self.manual._active_sessions[test_file]["metadata"]
+            self.assertEqual(metadata["title"], "The Movie")
+            self.assertEqual(metadata["year"], 2024)
+            
+    async def test_process_tv_show_details(self):
+        """Test processing TV show details."""
+        test_file = os.path.join(
+            self.config["paths"]["unmatched_dir"],
+            "test.mp4"
+        )
+        
+        # Set up session
+        async with self.manual._session_lock:
+            self.manual._active_sessions[test_file] = {
+                "stage": "details",
+                "metadata": {"type": "tv"}
+            }
+            
+        # Mock notification responses
+        self.notification.wait_for_response.side_effect = [
+            "Show Name",  # Title
+            "1",         # Season
+            "2"          # Episode
+        ]
+        
+        # Get TV show details
+        await self.manual._get_tv_show_details(test_file)
+        
+        # Verify metadata was updated
+        async with self.manual._session_lock:
+            metadata = self.manual._active_sessions[test_file]["metadata"]
+            self.assertEqual(metadata["show"], "Show Name")
+            self.assertEqual(metadata["season"], 1)
+            self.assertEqual(metadata["episode"], 2)
+            
+    async def test_handle_commands(self):
+        """Test command handling."""
+        # Create test files
+        test_file = os.path.join(
+            self.config["paths"]["unmatched_dir"],
+            "test.mp4"
+        )
+        with open(test_file, "wb") as f:
+            f.write(b"test content")
+            
+        # Test /list command
+        message = mock.AsyncMock()
+        await self.manual._handle_list(message)
+        
+        # Verify list was sent
+        self.notification.notify.assert_called_with(
+            mock.ANY,
+            level="info"
+        )
+        list_msg = self.notification.notify.call_args[0][0]
+        self.assertIn("test.mp4", list_msg)
+        
+        # Test /skip command with no active session
+        await self.manual._handle_skip(message)
+        self.notification.notify.assert_called_with(
+            "No active categorization session",
+            level="warning"
+        )

@@ -1,0 +1,76 @@
+"""Test configuration and fixtures."""
+import os
+import sys
+from pathlib import Path
+import asyncio
+import json
+import pytest
+from unittest import mock
+import platform
+
+# Add the project root directory to Python path
+project_root = str(Path(__file__).parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from media_manager.common.notification_service import NotificationService
+
+# Configure event loop policy for Windows if needed
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+@pytest.fixture(scope="function", autouse=True)
+def event_loop():
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+    asyncio.set_event_loop(None)
+
+@pytest.fixture
+def config():
+    """Create test configuration."""
+    return {
+        "paths": {
+            "movies_dir": "media/movies",
+            "tv_shows_dir": "media/tv_shows",
+            "unmatched_dir": "media/unmatched"
+        },
+        "tmdb": {
+            "api_key": "test_key"
+        },
+        "logging": {
+            "level": "DEBUG",
+            "filename": "media_watcher.log",
+            "max_size_mb": 10,
+            "backup_count": 3
+        },
+        "telegram": {
+            "bot_token": "test_token",
+            "chat_id": "test_chat_id"
+        },
+        "notification": {
+            "enabled": True,
+            "method": "telegram",
+            "bot_token": "test_token",
+            "chat_id": "test_chat_id"
+        }
+    }
+
+@pytest.fixture
+def mock_tmdb():
+    """Create mock TMDB client."""
+    return mock.AsyncMock()
+
+@pytest.fixture
+def mock_categorizer():
+    """Create mock media categorizer."""
+    return mock.AsyncMock()
+
+@pytest.fixture
+def notification_service(config):
+    """Create notification service instance with mocked bot."""
+    service = NotificationService(config)
+    service.bot = mock.AsyncMock()
+    return service
