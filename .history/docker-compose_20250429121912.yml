@@ -1,0 +1,41 @@
+name: media-manager
+
+services:
+  media-manager:
+    build: .
+    volumes:
+      - ./config.json:/app/config.json
+      - ${DOWNLOAD_PATH:-./downloads}:/app/downloads
+      - ${MEDIA_PATH:-./media}:/app/media
+      - ./logs:/app/logs
+      - ./temp_downloads:/app/temp_downloads
+      - telegram-session:/app/session
+    environment:
+      - TMDB_API_KEY
+      - TELEGRAM_API_ID
+      - TELEGRAM_API_HASH
+      - TELEGRAM_BOT_TOKEN
+      - TELEGRAM_CHAT_ID
+      - TZ=UTC
+    secrets:
+      - tmdb_api_key
+      - telegram_api_id
+      - telegram_api_hash
+      - telegram_bot_token
+      - telegram_chat_id
+    restart: unless-stopped
+
+volumes:
+  telegram-session:
+
+secrets:
+  tmdb_api_key:
+    file: ./.secrets/tmdb_api_key.txt
+  telegram_api_id:
+    file: ./.secrets/telegram_api_id.txt
+  telegram_api_hash:
+    file: ./.secrets/telegram_api_hash.txt
+  telegram_bot_token:
+    file: ./.secrets/telegram_bot_token.txt
+  telegram_chat_id:
+    file: ./.secrets/telegram_chat_id.txt

@@ -7,16 +7,16 @@
         "temp_download_dir": "/app/temp_downloads"
     },
     "tmdb": {
-        "api_key": "9bff30355935e6a42153d1999e784794",
+        "api_key": "${TMDB_API_KEY}",
         "language": "en-US",
         "include_adult": false
     },
     "telegram": {
-        "api_id": "29626522",
-        "api_hash": "df5c5933c2f024278cfa1613661685e7",
-        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
+        "api_id": "${TELEGRAM_API_ID}",
+        "api_hash": "${TELEGRAM_API_HASH}",
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
         "enabled": true,
-        "chat_id": "618026357",
+        "chat_id": "${TELEGRAM_CHAT_ID}",
         "flood_sleep_threshold": 60
     },
     "logging": {
@@ -38,13 +38,13 @@
     "notification": {
         "enabled": true,
         "method": "telegram",
-        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
-        "chat_id": "618026357"
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
+        "chat_id": "${TELEGRAM_CHAT_ID}"
     },
     "downloader": {
-        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
-        "api_id": "29626522",
-        "api_hash": "df5c5933c2f024278cfa1613661685e7",
-        "chat_id": "618026357"
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
+        "api_id": "${TELEGRAM_API_ID}",
+        "api_hash": "${TELEGRAM_API_HASH}",
+        "chat_id": "${TELEGRAM_CHAT_ID}"
     }
 }

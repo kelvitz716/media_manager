@@ -2066,7 +2066,8 @@ class TelegramDownloader:
             
             logger.info("Telegram Downloader started successfully")
         except Exception as e:
-            logger.error(f"Startup error: {str(e)}")
+            logger.error(f"Startup error```python
+: {str(e)}")
             self.running = False
 
     async def _shutdown(self) -> None:
@@ -2156,3 +2157,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```

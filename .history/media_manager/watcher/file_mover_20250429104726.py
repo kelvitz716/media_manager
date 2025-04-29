@@ -8,7 +8,6 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
 from media_manager.watcher.categorizer import MediaCategorizer
 from media_manager.common.notification_service import NotificationService
-import shutil
 
 class MediaFileHandler(FileSystemEventHandler):
     """Handles file system events for media files."""

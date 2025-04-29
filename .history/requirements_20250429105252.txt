@@ -1,6 +1,6 @@
 # Main dependencies
 python-telegram-bot>=20.7
-pyTelegramBotAPI>=4.15.0  # For async Telegram bot functionality
+telebot>=4.15.0  # For async Telegram bot functionality
 telethon>=1.33.1
 aiohttp>=3.9.1
 watchdog>=3.0.0
