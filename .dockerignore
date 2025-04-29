@@ -1,3 +1,7 @@
+# Git
+.git
+.gitignore
+
 # Python
 __pycache__/
 *.py[cod]
@@ -35,24 +39,29 @@ env/
 *.log
 logs/
 
-# Local development and secrets
+# Local development
 .env
 config.local.json
 *.session
 *.session-journal
-.secrets/
-secrets/
 
 # Media files
 media/
 downloads/
 temp_downloads/
 
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
+# Test and documentation
+tests/
+docs/
+*.md
+!README.md
 
 # Docker
 .docker/
-docker-compose.override.yml
+Dockerfile
+docker-compose.yml
+
+# Coverage reports
+.coverage
+htmlcov/
+.pytest_cache/

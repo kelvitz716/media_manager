@@ -35,13 +35,11 @@ env/
 *.log
 logs/
 
-# Local development and secrets
+# Local development
 .env
 config.local.json
 *.session
 *.session-journal
-.secrets/
-secrets/
 
 # Media files
 media/
@@ -55,4 +53,3 @@ htmlcov/
 
 # Docker
 .docker/
-docker-compose.override.yml

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  media-manager:
+    build: .
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./downloads:/app/downloads
+      - ./media:/app/media
+      - ./logs:/app/logs
+      - ./temp_downloads:/app/temp_downloads
+      - telegram-session:/app/session
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+
+volumes:
+  telegram-session: # Persistent volume for Telegram session data
