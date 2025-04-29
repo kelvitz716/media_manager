@@ -20,34 +20,17 @@ class MediaFileHandler(FileSystemEventHandler):
         self._processing_lock = asyncio.Lock()
         self._loop = loop
         self._stopping = False
-        self._tasks: Set[asyncio.Task] = set()
-        self._tasks_lock = asyncio.Lock()
         
     def on_created(self, event: FileCreatedEvent) -> None:
         """Handle file creation events."""
         if not event.is_directory and not self._stopping:
             self.logger.info(f"New file detected: {event.src_path}")
             future = asyncio.run_coroutine_threadsafe(
-                self._create_processing_task(event.src_path),
+                self._handle_new_file(event.src_path),
                 self._loop
             )
             future.add_done_callback(self._handle_task_result)
-            
-    async def _create_processing_task(self, file_path: str) -> None:
-        """Create and track a new processing task."""
-        try:
-            async with self._tasks_lock:
-                if not self._stopping:
-                    task = self._loop.create_task(self._handle_new_file(file_path))
-                    self._tasks.add(task)
-                    task.add_done_callback(self._remove_task)
-                    self.logger.debug(f"Created processing task for: {file_path}")
-        except Exception as e:
-            self.logger.error(f"Error creating task for {file_path}: {e}", exc_info=True)
-            
-    def _remove_task(self, task):
-        """Remove a completed task from the set."""
-        self._tasks.discard(task)
+            self.logger.debug(f"Created processing task for: {event.src_path}")
             
     def _handle_task_result(self, future):
         """Handle the result of an async task."""
@@ -69,12 +52,9 @@ class MediaFileHandler(FileSystemEventHandler):
             
             # Wait for file to be ready with timeout
             try:
-                await self._wait_for_file_ready(file_path, timeout=30)
+                await self._wait_for_file_ready(file_path, timeout=30)  # 30 second timeout
             except TimeoutError:
                 self.logger.error(f"Timeout waiting for file to stabilize: {file_path}")
-                return
-            except asyncio.CancelledError:
-                self.logger.info(f"Processing cancelled for file: {file_path}")
                 return
                 
             # Process the file
@@ -90,9 +70,9 @@ class MediaFileHandler(FileSystemEventHandler):
         finally:
             # Remove from processing set
             async with self._processing_lock:
-                self._processing_files.discard(file_path)
+                self._processing_files.remove(file_path)
                 self.logger.debug(f"Finished processing file: {file_path}")
-
+                
     async def _wait_for_file_ready(self, file_path: str, timeout: int = 30) -> None:
         """Wait for file to be ready for processing."""
         start_time = time.time()
@@ -100,9 +80,6 @@ class MediaFileHandler(FileSystemEventHandler):
         last_modified = 0
         
         while time.time() - start_time < timeout:
-            if self._stopping:
-                raise asyncio.CancelledError()
-                
             try:
                 if not os.path.exists(file_path):
                     await asyncio.sleep(0.1)
@@ -127,26 +104,9 @@ class MediaFileHandler(FileSystemEventHandler):
                 
         raise TimeoutError(f"Timeout waiting for file to stabilize: {file_path}")
         
-    async def stop(self):
-        """Stop the file handler and wait for tasks to complete."""
+    def stop(self):
+        """Stop the file handler."""
         self._stopping = True
-        
-        # Cancel and wait for all tasks
-        async with self._tasks_lock:
-            if self._tasks:
-                self.logger.info(f"Waiting for {len(self._tasks)} file processing tasks to complete...")
-                # Create list of tasks to avoid RuntimeError from set changing size
-                tasks = list(self._tasks)
-                # Cancel all tasks
-                for task in tasks:
-                    task.cancel()
-                # Wait for all tasks with timeout
-                try:
-                    await asyncio.wait(tasks, timeout=5)
-                except asyncio.TimeoutError:
-                    self.logger.warning("Timeout waiting for tasks to complete")
-                # Clear tasks set
-                self._tasks.clear()
 
 class MediaWatcher:
     """Watches download directory for new media files."""
@@ -176,12 +136,10 @@ class MediaWatcher:
         self.observer.start()
         self.logger.info(f"Started watching directory: {watch_dir}")
         
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop watching directory."""
         self.logger.info("Stopping file watcher")
-        # Stop accepting new files first
-        await self.event_handler.stop()
-        # Then stop the observer
+        self.event_handler.stop()
         self.observer.stop()
-        self.observer.join(timeout=5)
+        self.observer.join(timeout=5)  # Wait up to 5 seconds for observer to stop
         self.logger.info("File watcher stopped")
