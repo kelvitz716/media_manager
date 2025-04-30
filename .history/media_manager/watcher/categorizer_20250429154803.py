@@ -25,12 +25,10 @@ class MediaCategorizer:
         self.config_manager = config_manager
         self.logger = logging.getLogger("MediaCategorizer")
         self.notification = notification_service
-        self.config = config_manager.config  # Store config for easier access
         
         # Validate TMDB API key
-        tmdb_config = self.config_manager.get("tmdb", {})
-        tmdb_api_key = tmdb_config.get("api_key")
-        if not tmdb_api_key or tmdb_api_key == "${TMDB_API_KEY}":
+        tmdb_api_key = self.config_manager["tmdb"]["api_key"]
+        if not tmdb_api_key or tmdb_api_key == "YOUR_TMDB_API_KEY":
             self.logger.error("TMDB API key not configured")
             self.tmdb = None
         else:
@@ -203,10 +201,8 @@ class MediaCategorizer:
                 return False
 
             # Create movie directory
-            paths_config = self.config_manager.get("paths", {})
-            movies_dir = paths_config.get("movies_dir", "media/movies")
             movie_dir = os.path.join(
-                movies_dir,
+                self.config["paths"]["movies_dir"],
                 f"{movie_info['title']} ({movie_info['release_date'][:4]})"
             )
             os.makedirs(movie_dir, exist_ok=True)
@@ -217,7 +213,7 @@ class MediaCategorizer:
                 f"📦 Moving Movie File:\n"
                 f"Title: {movie_info['title']} ({movie_info['release_date'][:4]})\n"
                 f"Rating: {movie_info.get('vote_average', 'N/A')}/10\n"
-                f"To: {os.path.relpath(movie_dir, movies_dir)}",
+                f"To: {os.path.relpath(movie_dir, self.config['paths']['movies_dir'])}",
                 level="info"
             )
             shutil.move(file_path, new_path)
@@ -272,10 +268,8 @@ class MediaCategorizer:
                 return False
 
             # Create show/season directories
-            paths_config = self.config_manager.get("paths", {})
-            tv_shows_dir = paths_config.get("tv_shows_dir", "media/tv_shows")
             show_dir = os.path.join(
-                tv_shows_dir,
+                self.config["paths"]["tv_shows_dir"],
                 show_info['name']
             )
             season_dir = os.path.join(show_dir, f"Season {season:02d}")
@@ -289,7 +283,7 @@ class MediaCategorizer:
                 f"Season: {season:02d}\n"
                 f"Episode: {episode:02d}\n"
                 f"Rating: {show_info.get('vote_average', 'N/A')}/10\n"
-                f"To: {os.path.relpath(season_dir, tv_shows_dir)}",
+                f"To: {os.path.relpath(season_dir, self.config['paths']['tv_shows_dir'])}",
                 level="info"
             )
             shutil.move(file_path, new_path)
@@ -323,8 +317,7 @@ class MediaCategorizer:
         """Move file to unmatched directory."""
         try:
             filename = os.path.basename(file_path)
-            paths_config = self.config_manager.get("paths", {})
-            unmatched_dir = paths_config.get("unmatched_dir", "media/unmatched")
+            unmatched_dir = self.config["paths"]["unmatched_dir"]
             new_path = os.path.join(unmatched_dir, filename)
             
             # Ensure unique filename

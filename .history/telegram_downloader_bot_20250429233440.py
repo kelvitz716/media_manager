@@ -850,7 +850,7 @@ class TelegramClientManager:
                 # Create a session file path
                 session_file = "telegram_bot_session"
                 
-                # Start the
+                # Start the client
                 self.client = TelegramClient(
                     session_file, 
                     self.api_id, 
@@ -1540,7 +1540,7 @@ class DownloadManager:
             with open(file_path, 'rb') as f:
                 # Read first chunk to verify file is readable
                 f.seek(0)
-                first_chunk = f
+                first_chunk = f.read(1024)
                 
                 # For files larger than 2KB, check end too
                 size = os.path.getsize(file_path)
@@ -1836,7 +1836,7 @@ class TelegramBot:
                 f"SYSTEM CHECKS:\n"
                 f"{chr(10).join(test_results)}\n"
                 f"{chr(10).join(perf_results)}\n\n"
-                f"📱 Your bot is {'working properly!' if all('✅
+                f"📱 Your bot is {'working properly!' if all('✅' in r for r in test_results) else 'experiencing some issues.'}"
             )
 
         @self.bot.message_handler(content_types=['document', 'video', 'audio'])

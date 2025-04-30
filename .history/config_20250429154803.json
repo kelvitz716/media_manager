@@ -1,0 +1,50 @@
+{
+    "paths": {
+        "telegram_download_dir": "/app/downloads",
+        "movies_dir": "/app/media/movies",
+        "tv_shows_dir": "/app/media/tv_shows",
+        "unmatched_dir": "/app/media/unmatched",
+        "temp_download_dir": "/app/temp_downloads"
+    },
+    "tmdb": {
+        "api_key": "9bff30355935e6a42153d1999e784794",
+        "language": "en-US",
+        "include_adult": false
+    },
+    "telegram": {
+        "api_id": "29626522",
+        "api_hash": "df5c5933c2f024278cfa1613661685e7",
+        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
+        "enabled": true,
+        "chat_id": "618026357",
+        "flood_sleep_threshold": 60
+    },
+    "logging": {
+        "level": "INFO",
+        "max_size_mb": 10,
+        "backup_count": 5
+    },
+    "download": {
+        "chunk_size": 1048576,
+        "progress_update_interval": 5,
+        "max_retries": 3,
+        "retry_delay": 5,
+        "max_concurrent_downloads": 3,
+        "verify_downloads": true,
+        "temp_download_dir": "/app/temp_downloads",
+        "max_speed_mbps": null,
+        "speed_limit": 0
+    },
+    "notification": {
+        "enabled": true,
+        "method": "telegram",
+        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
+        "chat_id": "618026357"
+    },
+    "downloader": {
+        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
+        "api_id": "29626522",
+        "api_hash": "df5c5933c2f024278cfa1613661685e7",
+        "chat_id": "618026357"
+    }
+}

@@ -4,7 +4,7 @@ import os
 import time
 import datetime
 from typing import Dict, Any, Optional
-from telebot.async_telebot import AsyncTeleBot
+from telebot.async
 from telebot.types import Message
 import logging
 from telethon import TelegramClient
@@ -26,12 +26,11 @@ class TelegramDownloader:
         self.logger = logger
         
         # Initialize bot and client
-        self.bot = AsyncTeleBot(self.config.get("telegram", {}).get("bot_token"))
-
+        self.bot = AsyncTeleBot(self.config.get_value("telegram.bot_token"))
         self.client = TelegramClient(
             'telegram_bot_session',
-            api_id=int(self.config.get("telegram", {}).get("api_id")),
-            api_hash=self.config.get("telegram", {}).get("api_hash")
+            api_id=int(self.config.get_value("telegram.api_id")),
+            api_hash=self.config.get_value("telegram.api_hash")
         )
         
         # Initialize queues and tracking
@@ -41,10 +40,10 @@ class TelegramDownloader:
         
         # Initialize rate limiters
         self.rate_limiter = AsyncRateLimiter(
-            self.config.get("download", {}).get("max_concurrent_downloads")
+            self.config.get_value("download.max_concurrent_downloads")
         )
         self.speed_limiter = SpeedLimiter(
-            self.config.get("download", {}).get("speed_limit")
+            self.config.get_value("download.speed_limit")
         )
         
         self._setup_handlers()
@@ -135,7 +134,7 @@ class TelegramDownloader:
             )
             
             # Set up download path
-            download_dir = self.config.get("paths", {}).get("telegram_download_dir")
+            download_dir = self.config["paths"]["telegram_download_dir"]
             os.makedirs(download_dir, exist_ok=True)
             task.download_path = os.path.join(download_dir, task.filename)
             
@@ -220,7 +219,7 @@ class TelegramDownloader:
         
         # Start Telethon client
         self.logger.debug("Starting Telethon client")
-        await self.client.start(bot_token=self.config.get("telegram", {}).get("bot_token"))
+        await self.client.start(bot_token=self.config["telegram"]["bot_token"])
         
         # Start bot polling
         self.logger.debug("Starting bot polling")

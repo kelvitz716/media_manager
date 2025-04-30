@@ -635,7 +635,7 @@ class BatchProgressTracker:
             avg_speed = self.downloaded_bytes / elapsed if elapsed > 0 else 0
             avg_speed_text = self._format_size(avg_speed) + "/s"
             
-           
+            message = (
                 f"✅ BATCH DOWNLOAD COMPLETE\n\n"
                 f"📊 Summary:\n"
                 f"Total files: {self.total_files}\n"
@@ -850,7 +850,7 @@ class TelegramClientManager:
                 # Create a session file path
                 session_file = "telegram_bot_session"
                 
-                # Start the
+                # Start the client
                 self.client = TelegramClient(
                     session_file, 
                     self.api_id, 
@@ -1540,7 +1540,7 @@ class DownloadManager:
             with open(file_path, 'rb') as f:
                 # Read first chunk to verify file is readable
                 f.seek(0)
-                first_chunk = f
+                first_chunk = f.read(1024)
                 
                 # For files larger than 2KB, check end too
                 size = os.path.getsize(file_path)
@@ -1608,7 +1608,7 @@ class DownloadManager:
 
             for i, task in enumerate(list(self.download_queue)[:shown_count]):
                 # Add file size if available
-                size_info
+                size_info = ""
                 if task.file_size > 0:
                     size_info = f" ({self._format_size(task.file_size)})"
 
@@ -1836,7 +1836,7 @@ class TelegramBot:
                 f"SYSTEM CHECKS:\n"
                 f"{chr(10).join(test_results)}\n"
                 f"{chr(10).join(perf_results)}\n\n"
-                f"📱 Your bot is {'working properly!' if all('✅
+                f"📱 Your bot is {'working properly!' if all('✅' in r for r in test_results) else 'experiencing some issues.'}"
             )
 
         @self.bot.message_handler(content_types=['document', 'video', 'audio'])
@@ -1911,27 +1911,16 @@ class TelegramBot:
 
     async def start(self) -> None:
         """Start the Telegram bot."""
-        if not self.config.get("telegram", "enabled", default=False):
-            logger.info("Telegram bot is disabled in config")
-            return
-
-        try:
-            logger.info("Starting Telegram bot...")
-            # Create handlers
-            self._setup_handlers()
-            
-            # Start polling task
-            self.running = True
-            self.polling_task = asyncio.create_task(self._polling_task())
-            self.connection_check_task = asyncio.create_task(self._connection_check())
-            
-            logger.info("Telegram bot started successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to start Telegram bot: {str(e)}")
-            self.running = False
-            raise
-
+        logger.info("Starting Telegram bot")
+        self.running = True
+        await self.download_manager.start()
+        
+        # Start polling in a separate task
+        asyncio.create_task(self._polling_task())
+        
+        # Start connection check task
+        asyncio.create_task(self._connection_check())
+        
     async def _polling_task(self) -> None:
         offset = 0
         while self.running:
@@ -2066,7 +2055,6 @@ class TelegramDownloader:
             except Exception as e:
                 logger.error(f"Failed to create directory {directory}: {str(e)}")
 
-    async def _startup```python
     async def _startup(self) -> None:
         """Initialize and start all components."""
         try:
@@ -2168,4 +2156,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```

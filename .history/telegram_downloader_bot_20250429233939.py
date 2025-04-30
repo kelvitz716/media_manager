@@ -1836,7 +1836,7 @@ class TelegramBot:
                 f"SYSTEM CHECKS:\n"
                 f"{chr(10).join(test_results)}\n"
                 f"{chr(10).join(perf_results)}\n\n"
-                f"📱 Your bot is {'working properly!' if all('✅
+                f"📱 Your bot is {'working properly!' if all('✅' in r for r in test_results) else 'experiencing some issues.'}"
             )
 
         @self.bot.message_handler(content_types=['document', 'video', 'audio'])

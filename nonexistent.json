@@ -1,0 +1,39 @@
+{
+    "paths": {
+        "telegram_download_dir": "/home/kelvitz/media_manager/downloads",
+        "movies_dir": "/home/kelvitz/media_manager/media/movies",
+        "tv_shows_dir": "/home/kelvitz/media_manager/media/tv_shows",
+        "unmatched_dir": "/home/kelvitz/media_manager/media/unmatched",
+        "temp_download_dir": "/home/kelvitz/media_manager/temp_downloads"
+    },
+    "notification": {
+        "enabled": true,
+        "method": "telegram",
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
+        "chat_id": "${TELEGRAM_CHAT_ID}"
+    },
+    "logging": {
+        "level": "INFO",
+        "max_size_mb": 10,
+        "backup_count": 5,
+        "log_file": "media_watcher.log",
+        "log_dir": "logs"
+    },
+    "tmdb": {
+        "api_key": "${TMDB_API_KEY}",
+        "language": "en-US",
+        "include_adult": false
+    },
+    "telegram": {
+        "bot_token": "",
+        "chat_id": ""
+    },
+    "download": {
+        "chunk_size": 1048576,
+        "progress_update_interval": 5,
+        "max_retries": 3,
+        "retry_delay": 5,
+        "max_concurrent_downloads": 3,
+        "verify_downloads": true
+    }
+}
