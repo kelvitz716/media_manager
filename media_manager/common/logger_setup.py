@@ -1,5 +1,6 @@
 """Logging setup module."""
 import os
+import stat
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -52,16 +53,30 @@ def setup_logging(config):
     
     if log_dir and log_file:
         log_path = Path(log_dir)
-        log_path.mkdir(parents=True, exist_ok=True)
-        
-        file_handler = RotatingFileHandler(
-            log_path / log_file,
-            maxBytes=max_size,
-            backupCount=backup_count
-        )
-        file_handler.setFormatter(detailed_formatter)
-        file_handler.setLevel(level)
-        root_logger.addHandler(file_handler)
+        try:
+            # Create log directory with proper permissions
+            log_path.mkdir(parents=True, exist_ok=True)
+            # Set directory permissions to 777 to ensure write access
+            os.chmod(log_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            
+            log_file_path = log_path / log_file
+            # Touch the log file if it doesn't exist and set permissions
+            if not log_file_path.exists():
+                log_file_path.touch()
+                os.chmod(log_file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+            
+            file_handler = RotatingFileHandler(
+                log_file_path,
+                maxBytes=max_size,
+                backupCount=backup_count
+            )
+            file_handler.setFormatter(detailed_formatter)
+            file_handler.setLevel(level)
+            root_logger.addHandler(file_handler)
+        except Exception as e:
+            # If we can't set up file logging, just log to console
+            root_logger.warning(f"Could not set up file logging: {e}")
+            root_logger.warning("Continuing with console logging only")
     
     # Configure module loggers
     loggers = {}

@@ -1,19 +1,19 @@
 # Main dependencies
-python-telegram-bot>=20.7
-pyTelegramBotAPI>=4.15.0  # For async Telegram bot functionality
-telethon>=1.33.1
-aiohttp>=3.9.1
+python-telegram-bot>=20.0
+pyTelegramBotAPI>=4.0.0  # For async Telegram bot functionality
+telethon>=1.24.0
+aiohttp>=3.8.0
 watchdog>=3.0.0
-requests>=2.31.0
-python-dotenv>=1.0.0
+requests>=2.26.0
+python-dotenv>=0.19.0
 asyncio>=3.4.3
 click>=8.1.7  # For CLI initialization script
 pyyaml>=6.0.1  # For config management
 
 # Development and testing dependencies
-pytest>=8.0.0
-pytest-asyncio>=0.23.5
-pytest-cov>=4.1.0
+pytest>=6.2.5
+pytest-asyncio>=0.16.0
+pytest-cov>=2.12.0
 mypy>=1.8.0
 black>=24.1.0
 isort>=5.13.0

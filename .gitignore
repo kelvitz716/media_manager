@@ -38,6 +38,7 @@ logs/
 # Local development and secrets
 .env
 config.local.json
+config.json
 *.session
 *.session-journal
 .secrets/
@@ -55,4 +56,4 @@ htmlcov/
 
 # Docker
 .docker/
-docker-compose.override.yml
+docker-compose.override.ymldocker-desktop-*.deb

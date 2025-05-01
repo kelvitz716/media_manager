@@ -3,7 +3,7 @@ import pytest
 import asyncio
 import time
 from unittest import mock
-from media_manager.common.rate_limiters import AsyncRateLimiter, ThreadedRateLimiter, SpeedLimiter
+from media_manager.common.rate_limiters import AsyncRateLimiter, ThreadedRateLimiter, SpeedLimiter, StatsManager
 
 @pytest.mark.asyncio
 async def test_async_rate_limiter():
@@ -121,3 +121,39 @@ async def test_speed_limiter_small_chunks():
     
     # Should take around 1 second, allow generous margin
     assert 0.8 <= elapsed <= 1.5
+
+def test_stats_manager():
+    """Test StatsManager functionality."""
+    stats = StatsManager()
+    
+    # Test increment
+    stats.increment("downloads", "total_bytes", 1024)
+    stats.increment("downloads", "total_bytes", 2048)
+    assert stats.get("downloads", "total_bytes") == 3072
+    
+    stats.increment("api_calls", "requests")
+    stats.increment("api_calls", "requests")
+    assert stats.get("api_calls", "requests") == 2
+    
+    # Test set
+    stats.set("downloads", "status", "completed")
+    assert stats.get("downloads", "status") == "completed"
+    
+    # Test get_category
+    downloads = stats.get_category("downloads")
+    assert downloads["total_bytes"] == 3072
+    assert downloads["status"] == "completed"
+    
+    # Test thread safety
+    import threading
+    def increment_counter():
+        for _ in range(100):
+            stats.increment("counters", "thread_test")
+    
+    threads = [threading.Thread(target=increment_counter) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+        
+    assert stats.get("counters", "thread_test") == 1000  # 10 threads * 100 increments

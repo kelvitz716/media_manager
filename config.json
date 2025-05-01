@@ -1,10 +1,10 @@
 {
     "paths": {
-        "telegram_download_dir": "/home/kelvitz/Videos/Telegram",
-        "movies_dir": "/home/kelvitz/Videos/Jellyfin/Movies",
-        "tv_shows_dir": "/home/kelvitz/Videos/Jellyfin/TV Shows",
-        "unmatched_dir": "/home/kelvitz/Videos/Jellyfin/Unmatched",
-        "temp_download_dir": "temp_downloads"
+        "telegram_download_dir": "/app/downloads",
+        "movies_dir": "/app/media/movies",
+        "tv_shows_dir": "/app/media/tv_shows",
+        "unmatched_dir": "/app/media/unmatched",
+        "temp_download_dir": "/app/temp_downloads"
     },
     "tmdb": {
         "api_key": "9bff30355935e6a42153d1999e784794",
@@ -12,15 +12,19 @@
         "include_adult": false
     },
     "telegram": {
-        "api_id": 29626522,
+        "api_id": "29626522",
         "api_hash": "df5c5933c2f024278cfa1613661685e7",
         "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
         "enabled": true,
-        "chat_id": 618026357,
+        "chat_id": "618026357",
         "flood_sleep_threshold": 60
     },
+    "notification": {
+        "enabled": true,
+        "method": "telegram"
+    },
     "logging": {
-        "level": "INFO",
+        "level": "DEBUG",
         "max_size_mb": 10,
         "backup_count": 5
     },
@@ -34,11 +38,5 @@
         "temp_download_dir": "temp_downloads",
         "max_speed_mbps": null,
         "speed_limit": 0
-    },
-    "notification": {
-        "enabled": true,
-        "method": "telegram",
-        "bot_token": "7449949703:AAGPlS0UCL0f58VjBtTXVZ8w-lxNhvkZrNk",
-        "chat_id": 618026357
     }
 }

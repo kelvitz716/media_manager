@@ -22,16 +22,23 @@ COPY . .
 # Install the package in development mode
 RUN pip install -e .
 
-# Create necessary directories
-RUN mkdir -p /app/temp_downloads /app/logs
+# Create necessary directories and set permissions
+RUN mkdir -p /app/temp_downloads /app/logs && \
+    chmod +x /app/scripts/docker_entrypoint.sh /app/scripts/init_config.py && \
+    mkdir -p /app/.sessions && \
+    chown -R nobody:nogroup /app/temp_downloads /app/logs /app/.sessions /app && \
+    chmod -R 777 /app/temp_downloads /app/logs /app/.sessions && \
+    touch /app/config.json && \
+    chown nobody:nogroup /app/config.json && \
+    chmod 666 /app/config.json
+
+# Switch to non-root user
+USER nobody
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV CONFIG_PATH=/app/config.json
 ENV PYTHONPATH=/app
-
-# Make scripts executable
-RUN chmod +x /app/scripts/docker_entrypoint.sh /app/scripts/init_config.py
 
 # Set entrypoint
 ENTRYPOINT ["/app/scripts/docker_entrypoint.sh"]
