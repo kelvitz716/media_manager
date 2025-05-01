@@ -4,7 +4,6 @@ services:
   media-manager:
     build: .
     volumes:
-      - ./config.json:/app/config.json
       - ${DOWNLOAD_PATH:-./downloads}:/app/downloads
       - ${MEDIA_PATH:-./media}:/app/media
       - ./logs:/app/logs

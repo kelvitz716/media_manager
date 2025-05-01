@@ -19,20 +19,44 @@ logger = logging.getLogger(__name__)
 class TelegramDownloader:
     """Handles downloading media from Telegram."""
     
-    def __init__(self, config: Dict[str, Any], notification_service: NotificationService, categorizer):
-        self.config = config
+    def __init__(self, config_manager, notification_service: NotificationService, categorizer=None):
+        """Initialize the downloader."""
+        self.config = config_manager
         self.notification = notification_service
         self.categorizer = categorizer
-        self.logger = logger
+        self.logger = logging.getLogger("TelegramDownloader")
         
-        # Initialize bot and client
-        self.bot = AsyncTeleBot(self.config.get("telegram", {}).get("bot_token"))
-
-        self.client = TelegramClient(
-            'telegram_bot_session',
-            api_id=int(self.config.get("telegram", {}).get("api_id")),
-            api_hash=self.config.get("telegram", {}).get("api_hash")
-        )
+        # Get telegram config with validation
+        telegram_config = self.config.get("telegram", {})
+        required_fields = ["bot_token", "api_id", "api_hash", "chat_id"]
+        missing_fields = [field for field in required_fields if not telegram_config.get(field)]
+        
+        if missing_fields:
+            error_msg = f"Missing required Telegram configuration: {', '.join(missing_fields)}"
+            self.logger.error(error_msg)
+            raise ValueError(error_msg)
+            
+        # Log token state (safely)
+        token = telegram_config["bot_token"]
+        prefix = token[:3] if len(token) > 3 else token
+        has_colon = ':' in token
+        self.logger.debug(f"Bot token validation - prefix: {prefix}..., contains colon: {has_colon}")
+            
+        # Initialize bot
+        self.bot = AsyncTeleBot(token)
+        
+        # Initialize Telethon client
+        try:
+            self.client = TelegramClient(
+                'telegram_bot_session',
+                api_id=int(telegram_config["api_id"]),
+                api_hash=telegram_config["api_hash"]
+            )
+            self.logger.debug("Telethon client initialized successfully")
+        except Exception as e:
+            error_msg = f"Failed to initialize Telethon client: {str(e)}"
+            self.logger.error(error_msg)
+            raise ValueError(error_msg) from e
         
         # Initialize queues and tracking
         self.download_queue = asyncio.Queue()
@@ -41,10 +65,10 @@ class TelegramDownloader:
         
         # Initialize rate limiters
         self.rate_limiter = AsyncRateLimiter(
-            self.config.get("download", {}).get("max_concurrent_downloads")
+            self.config.get("download", {}).get("max_concurrent_downloads", 3)
         )
         self.speed_limiter = SpeedLimiter(
-            self.config.get("download", {}).get("speed_limit")
+            self.config.get("download", {}).get("speed_limit", 0)
         )
         
         self._setup_handlers()

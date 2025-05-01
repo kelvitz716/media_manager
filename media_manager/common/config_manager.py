@@ -22,6 +22,14 @@ DEFAULT_CONFIG = {
         "bot_token": "${TELEGRAM_BOT_TOKEN}",
         "chat_id": "${TELEGRAM_CHAT_ID}"
     },
+    "telegram": {
+        "enabled": True,
+        "bot_token": "${TELEGRAM_BOT_TOKEN}",
+        "api_id": "${TELEGRAM_API_ID}",
+        "api_hash": "${TELEGRAM_API_HASH}",
+        "chat_id": "${TELEGRAM_CHAT_ID}",
+        "flood_sleep_threshold": 60
+    },
     "logging": {
         "level": "INFO",
         "max_size_mb": 10,
@@ -78,13 +86,31 @@ class ConfigManager:
         return self.config.get(section, default)
 
     def _resolve_secrets(self) -> None:
-        """Resolve secrets from environment variables."""
+        """Resolve secrets from environment variables and Docker secrets."""
+        def read_secret(secret_name: str) -> Optional[str]:
+            """Read a secret from Docker secrets or environment variable."""
+            # First try Docker secrets
+            secret_path = f"/run/secrets/{secret_name.lower()}"
+            if os.path.exists(secret_path):
+                try:
+                    with open(secret_path, 'r') as f:
+                        return f.read().strip()
+                except Exception as e:
+                    logger.warning(f"Error reading secret {secret_name}: {e}")
+            
+            # Fallback to environment variable
+            return os.environ.get(secret_name)
+
         for section in self.config:
             if isinstance(self.config[section], dict):
                 for key, value in self.config[section].items():
                     if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                         env_var = value[2:-1]
-                        self.config[section][key] = os.environ.get(env_var, value)
+                        secret_value = read_secret(env_var)
+                        if secret_value:
+                            self.config[section][key] = secret_value
+                        else:
+                            logger.warning(f"Could not resolve secret for {env_var}")
 
     def _validate_config(self) -> None:
         """Validate configuration and set defaults."""
@@ -107,15 +133,22 @@ class ConfigManager:
     def _validate_telegram(self) -> None:
         """Validate Telegram configuration."""
         if "telegram" not in self.config:
-            self.config["telegram"] = {}
+            self.config["telegram"] = DEFAULT_CONFIG["telegram"].copy()
+            logger.debug("Added missing telegram section")
         
         telegram_config = self.config["telegram"]
-        defaults = DEFAULT_CONFIG.get("telegram", {})
+        defaults = DEFAULT_CONFIG["telegram"]
         
-        # Ensure required fields exist
-        for key in ["bot_token", "chat_id"]:
+        # Ensure all required fields exist with defaults
+        for key, default_value in defaults.items():
             if key not in telegram_config:
-                telegram_config[key] = defaults.get(key, "")
+                telegram_config[key] = default_value
+                logger.debug(f"Added missing telegram setting: {key}")
+
+        # Ensure notification section has the same credentials
+        if "notification" in self.config:
+            self.config["notification"]["bot_token"] = telegram_config["bot_token"]
+            self.config["notification"]["chat_id"] = telegram_config["chat_id"]
 
     def _validate_paths(self) -> None:
         """Validate paths configuration."""
@@ -165,13 +198,33 @@ class ConfigManager:
 
     def _sync_credentials(self) -> None:
         """Synchronize credentials across sections."""
-        # Sync notification settings with telegram if needed
-        if (self.config.get("notification", {}).get("method") == "telegram" and
-            "telegram" in self.config):
-            # Copy essential details from telegram section
-            for key in ["bot_token", "chat_id"]:
-                if key in self.config["telegram"]:
-                    self.config["notification"][key] = self.config["telegram"][key]
+        # Create downloader section if it doesn't exist
+        if "downloader" not in self.config:
+            self.config["downloader"] = {}
+            logger.debug("Created missing downloader section")
+
+        # Sync from telegram section to downloader
+        for key in ["bot_token", "api_id", "api_hash", "chat_id"]:
+            if self.config["telegram"].get(key):
+                self.config["downloader"][key] = self.config["telegram"][key]
+                # Mask sensitive data in logs
+                masked_value = '****' if key != 'chat_id' else self.config["telegram"][key]
+                logger.debug(f"Synced {key} from telegram to downloader section: {masked_value}")
+            else:
+                logger.warning(f"Missing {key} in telegram section")
+
+        # Only sync chat_id from telegram to notification if notification section exists
+        if "notification" in self.config and self.config["telegram"].get("chat_id"):
+            self.config["notification"]["chat_id"] = self.config["telegram"]["chat_id"]
+            logger.debug(f"Synced chat_id to notification section: {self.config['telegram']['chat_id']}")
+
+        # Log the final state of the token
+        if "bot_token" in self.config["telegram"]:
+            token = self.config["telegram"]["bot_token"]
+            # Only log first 3 chars and presence of colon for security
+            prefix = token[:3] if len(token) > 3 else token
+            has_colon = ':' in token
+            logger.debug(f"Final bot_token state - prefix: {prefix}..., contains colon: {has_colon}")
 
     def _save_config(self) -> None:
         """Save current configuration to file."""
