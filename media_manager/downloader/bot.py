@@ -1,220 +1,213 @@
-"""Telegram downloader module."""
-import os
+"""Telegram bot and downloader implementation."""
+from typing import Dict, Any, List
 import asyncio
-import logging
-from typing import Dict, Any, Optional, Set
-from telethon import TelegramClient, events
-from telethon.tl.types import Message, Document, DocumentAttributeVideo
+import os
+from datetime import datetime
+from telebot.async_telebot import AsyncTeleBot
+from telethon import TelegramClient
+from telethon.tl.types import DocumentAttributeFilename
 from media_manager.common.notification_service import NotificationService
+from media_manager.common.rate_limiters import AsyncRateLimiter, SpeedLimiter
+from media_manager.downloader.download_task import DownloadManager, DownloadTask
+
+class TelegramBot:
+    """Handles interactions with the Telegram Bot API."""
+    
+    def __init__(self, config_manager, notification_service: NotificationService):
+        """Initialize the Telegram bot."""
+        self.config = config_manager.config
+        self.notification = notification_service
+        self.bot = AsyncTeleBot(self.config["telegram"]["bot_token"])
+        self._setup_handlers()
+        
+    def _setup_handlers(self):
+        """Set up message handlers."""
+        @self.bot.message_handler(commands=['start', 'help'])
+        async def send_welcome(message):
+            await self.bot.reply_to(message, 
+                "Welcome to Media Manager Bot!\n\n"
+                "Commands:\n"
+                "/help - Show this help message\n"
+                "/status - Show system status\n"
+                "/queue - Show download queue\n"
+                "/settings - Show current settings"
+            )
+            
+        @self.bot.message_handler(commands=['status'])
+        async def send_status(message):
+            # This would be improved with actual status info
+            await self.bot.reply_to(message, "System is running normally")
+        
+        @self.bot.message_handler(commands=['queue'])
+        async def send_queue(message):
+            # This would be improved with actual queue info
+            await self.bot.reply_to(message, "No downloads in queue")
+        
+        @self.bot.message_handler(commands=['settings'])
+        async def send_settings(message):
+            settings_text = (
+                "Current Settings:\n"
+                f"Download directory: {self.config['download']['directory']}\n"
+                f"Max concurrent downloads: {self.config['download']['max_concurrent_downloads']}\n"
+                f"Speed limit: {self.config['download']['speed_limit']} KB/s"
+            )
+            await self.bot.reply_to(message, settings_text)
+    
+    async def start(self):
+        """Start the bot."""
+        await self.bot.polling(non_stop=True, skip_pending=True)
+        
+    async def stop(self):
+        """Stop the bot."""
+        await self.bot.stop_polling()
+
 
 class TelegramDownloader:
-    """Handles Telegram media downloads."""
+    """Handles downloading media from Telegram."""
 
     def __init__(self, config_manager, notification_service: NotificationService):
         """Initialize the downloader."""
-        self.config = config_manager.config
-        self.logger = logging.getLogger("TelegramDownloader")
+        self.config = config_manager
         self.notification = notification_service
+        self.bot = AsyncTeleBot(self.config.config["telegram"]["bot_token"])
+        self.download_dir = self.config.config["paths"]["telegram_download_dir"]
         
-        # Get Telegram credentials
-        self.api_id = self.config["telegram"]["api_id"]
-        self.api_hash = self.config["telegram"]["api_hash"]
-        self.bot_token = self.config["telegram"]["bot_token"]
-        self.download_dir = self.config["paths"]["telegram_download_dir"]
-        self.temp_dir = self.config["paths"]["temp_download_dir"]
-        
-        # Ensure directories exist
-        os.makedirs(self.download_dir, exist_ok=True)
-        os.makedirs(self.temp_dir, exist_ok=True)
-        
-        # Initialize client with bot token
-        session_file = os.path.join('/app/.sessions', 'media_downloader')
+        # Initialize Telethon client for downloads
         self.client = TelegramClient(
-            session_file,
-            self.api_id,
-            self.api_hash
+            'telegram_bot_session',
+            api_id=int(self.config.config["telegram"]["api_id"]),
+            api_hash=self.config.config["telegram"]["api_hash"]
         )
-
-        # Track downloads
-        self._active_downloads: Set[asyncio.Task] = set()
-        self._stopping = False
-
-    async def start(self) -> None:
-        """Start the downloader."""
-        try:
-            # Start the client with bot token
-            await self.client.start(bot_token=self.bot_token)
+        
+        # Create rate limiters
+        self.rate_limiter = AsyncRateLimiter(
+            self.config.config["download"]["max_concurrent_downloads"]
+        )
+        self.speed_limiter = SpeedLimiter(
+            self.config.config["download"]["speed_limit"]
+        )
+        
+        # Initialize download manager
+        self.download_manager = DownloadManager(config_manager, notification_service)
+        
+        # Initialize state variables
+        self._active_downloads = {}
+        self._download_queue = []
+        self._download_lock = asyncio.Lock()
+        self._running = False
+        
+        # Set up message handlers
+        self._setup_handlers()
+        
+    def _setup_handlers(self):
+        """Set up message handlers for the bot."""
+        @self.bot.message_handler(content_types=['document', 'video', 'audio', 'photo'])
+        async def handle_media(message):
+            """Handle incoming media messages."""
+            try:
+                await self.download_manager.process_media_message(message)
+                await self.bot.reply_to(message, 
+                    f"Media received and added to download queue.\n"
+                    f"Current queue: {self.download_manager.get_queue_status()}"
+                )
+            except Exception as e:
+                await self.bot.reply_to(message, f"Failed to process media: {str(e)}")
+                await self.notification.notify(
+                    f"Error processing media message: {str(e)}",
+                    level="error"
+                )
+        
+        @self.bot.message_handler(commands=['queue'])
+        async def show_queue(message):
+            """Show current download queue status."""
+            queue_status = self.download_manager.get_queue_status()
+            active_downloads = self.download_manager.get_active_downloads()
             
-            # Verify connection
-            if not await self.client.is_user_authorized():
-                raise Exception("Failed to authenticate with Telegram")
-                
-            self.logger.info("Telegram client started successfully")
+            response = ["📥 Download Queue Status:\n"]
             
-            # Register message handler
-            @self.client.on(events.NewMessage())
-            async def handle_new_message(event: Message):
-                if event.media and not self._stopping:
-                    await self._process_media(event)
+            if active_downloads:
+                response.append("🔄 ACTIVE DOWNLOADS:")
+                for i, dl in enumerate(active_downloads, 1):
+                    response.append(
+                        f"{i}. {os.path.basename(dl['filename'])}\n"
+                        f"   Progress: {dl['progress']:.1f}% - {dl['status']}"
+                    )
             
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                "Media downloader started successfully.\n"
-                f"Monitoring for new media in chat: {self.config['telegram']['chat_id']}\n"
-                f"Downloads will be saved to: {os.path.abspath(self.download_dir)}",
-                level="info"
-            )
-                    
-        except Exception as e:
-            self.logger.error(f"Failed to start Telegram client: {e}")
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"Failed to start downloader: {str(e)}",
-                level="error"
-            )
-            raise
-
-    async def stop(self) -> None:
-        """Stop the downloader."""
-        self._stopping = True
-        if self._active_downloads:
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"Waiting for {len(self._active_downloads)} downloads to complete...",
-                level="info"
-            )
-            await asyncio.gather(*self._active_downloads)
-        await self.client.disconnect()
-        await self.notification.ensure_token_and_notify(
-            "TelegramDownloader",
-            "Media downloader stopped",
+            response.append(f"\n{queue_status}")
+            
+            await self.bot.reply_to(message, "\n".join(response))
+        
+        @self.bot.message_handler(commands=['cancel'])
+        async def cancel_download(message):
+            """Cancel active download."""
+            # This would need implementation based on how you track active downloads
+            await self.bot.reply_to(message, "This feature is not yet implemented.")
+        
+    async def start(self):
+        """Start the downloader and bot."""
+        self._running = True
+        await self.client.start()
+        
+        # Start the bot in a separate task
+        asyncio.create_task(self.bot.polling(non_stop=True, skip_pending=True))
+        
+        # Create download directory if it doesn't exist
+        os.makedirs(self.download_dir, exist_ok=True)
+        
+        # Send startup notification
+        await self.notification.notify(
+            "TelegramDownloader service started successfully",
             level="info"
         )
-        self.logger.info("Telegram client stopped")
+    
+    async def stop(self):
+        """Stop the downloader and bot."""
+        self._running = False
+        await self.bot.stop_polling()
+        await self.client.disconnect()
+        
+        # Send shutdown notification
+        await self.notification.notify(
+            "TelegramDownloader service stopped",
+            level="info"
+        )
 
-    async def _process_media(self, event: Message) -> None:
-        """Process a media message."""
-        try:
-            if not isinstance(event.media, Document):
-                return
+    async def download_file(self, file_id, chat_id, message_id):
+        """Download a file using Telethon client."""
+        # This is a placeholder implementation
+        # In a real implementation, you would:
+        # 1. Get the message from Telegram
+        # 2. Download the file with progress reporting
+        # 3. Update the task status
+        pass
 
-            # Get file attributes
-            attributes = event.media.attributes
-            video_attr = next((a for a in attributes if isinstance(a, DocumentAttributeVideo)), None)
-            if not video_attr:
-                return
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get current download statistics."""
+        active_downloads = self.download_manager.get_active_downloads()
+        
+        # Get basic stats from download manager
+        queue_size = len(self._download_queue)
+        total = len(active_downloads) + queue_size
+        
+        return {
+            'total': total,
+            'active': len(active_downloads),
+            'queued': queue_size,
+            'speed_limit': self.speed_limiter.limit if self.speed_limiter else None,
+        }
 
-            # Get file info
-            file_name = event.file.name or f"video_{event.id}.mp4"
-            file_size = event.file.size
-            temp_path = os.path.join(self.temp_dir, file_name)
-            final_path = os.path.join(self.download_dir, file_name)
-
-            # Check if file already exists
-            if os.path.exists(final_path):
-                self.logger.info(f"File already exists: {final_path}")
-                await self.notification.ensure_token_and_notify(
-                    "TelegramDownloader",
-                    f"⚠️ File already exists: {file_name}",
-                    level="warning",
-                    file_path=final_path
-                )
-                return
-
-            # Acquire token for initial notification
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"📥 Starting Download:\n"
-                f"File: {file_name}\n"
-                f"Size: {file_size / 1024 / 1024:.2f} MB\n"
-                f"Downloading to: {os.path.relpath(temp_path, start=self.temp_dir)}",
-                level="info",
-                file_path=temp_path
-            )
-
-            # Start download
-            download_task = asyncio.create_task(self._download_file(event, temp_path, final_path))
-            self._active_downloads.add(download_task)
-            download_task.add_done_callback(self._active_downloads.discard)
-
-        except Exception as e:
-            self.logger.error(f"Error processing media message: {e}")
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"Error processing media: {str(e)}",
-                level="error"
-            )
-
-    async def _download_file(self, event: Message, temp_path: str, final_path: str) -> None:
-        """Download a file from Telegram."""
-        try:
-            # Track progress for notifications
-            last_progress = -1
-            last_notification_time = 0
-            start_time = asyncio.get_event_loop().time()
-            file_size = event.file.size
-
-            async def progress_callback(received_bytes, total):
-                nonlocal last_progress, last_notification_time
-                current_time = asyncio.get_event_loop().time()
-                progress = int((received_bytes / total) * 100)
-                
-                # Update progress every 5% or every 30 seconds, whichever comes first
-                if (progress >= last_progress + 5) or (current_time - last_notification_time >= 30):
-                    speed = received_bytes / (current_time - start_time) / 1024 / 1024  # MB/s
-                    remaining_bytes = total - received_bytes
-                    eta_seconds = remaining_bytes / (speed * 1024 * 1024) if speed > 0 else 0
-                    
-                    await self.notification.ensure_token_and_notify(
-                        "TelegramDownloader",
-                        f"📥 Downloading: {event.file.name}\n"
-                        f"Progress: {progress}%\n"
-                        f"Speed: {speed:.2f} MB/s\n"
-                        f"ETA: {int(eta_seconds/60)}m {int(eta_seconds%60)}s",
-                        level="progress",
-                        file_path=temp_path
-                    )
-                    last_progress = progress
-                    last_notification_time = current_time
-
-            # Download to temp directory first
-            await event.download_media(
-                file=temp_path,
-                progress_callback=progress_callback
-            )
-
-            # Move to final location
-            os.rename(temp_path, final_path)
-
-            # Final notification
-            download_time = asyncio.get_event_loop().time() - start_time
-            avg_speed = file_size / download_time / 1024 / 1024
-            
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"✅ Download Complete!\n\n"
-                f"📁 File: {event.file.name}\n"
-                f"📊 Size: {file_size / 1024 / 1024:.2f} MB\n"
-                f"⚡ Avg Speed: {avg_speed:.2f} MB/s\n"
-                f"⏱️ Time: {download_time:.1f}s\n\n"
-                f"The file will be processed by the Media Categorizer shortly.",
-                level="success",
-                file_path=final_path
-            )
-
-            # Release token to let categorizer take over
-            self.notification.release_token("TelegramDownloader")
-
-        except Exception as e:
-            self.logger.error(f"Error downloading {event.file.name}: {e}")
-            await self.notification.ensure_token_and_notify(
-                "TelegramDownloader",
-                f"❌ Download Failed!\n\n"
-                f"File: {event.file.name}\n"
-                f"Error: {str(e)}",
-                level="error",
-                file_path=temp_path
-            )
-            # Clean up temp file if it exists
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+    async def get_queue_status(self) -> List[Dict[str, Any]]:
+        """Get status of queued downloads."""
+        # This should return more detailed information about the queue
+        # Placeholder implementation
+        queue_items = []
+        for dl in self.download_manager.get_active_downloads():
+            queue_items.append({
+                'file_name': os.path.basename(dl['filename']),
+                'size': 0,  # This would be populated with actual size
+                'added_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'priority': 'normal',
+                'progress': dl['progress'],
+                'status': dl['status']
+            })
+        return queue_items

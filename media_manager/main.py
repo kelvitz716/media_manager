@@ -1,132 +1,66 @@
-"""Main entry point for the media manager."""
+"""Main application module."""
 import asyncio
 import logging
 import os
-import signal
-from typing import Any
-from pathlib import Path
+
 from media_manager.common.config_manager import ConfigManager
 from media_manager.common.notification_service import NotificationService
-from media_manager.common.logger_setup import setup_logging
+from media_manager.downloader.bot import TelegramBot, TelegramDownloader
 from media_manager.watcher.categorizer import MediaCategorizer
-from media_manager.downloader.bot import TelegramDownloader
 
 class MediaManager:
-    def __init__(self):
-        """Initialize Media Manager."""
-        # Load configuration
-        self.config_manager = ConfigManager("config.json")
-        self.config = self.config_manager.config
-        
-        # Set up logging
-        self.logger = setup_logging(self.config["logging"])
-        
-        # Ensure directories exist with correct permissions
-        self._ensure_directories()
-        
-        # Initialize notification service with token locking
-        self.notification = NotificationService(self.config_manager)
-        
-        # Initialize components
-        self.categorizer = None
-        self.downloader = None
-        
-        # Set up signal handlers
-        self._setup_signal_handlers()
-        
-    def _ensure_directories(self):
-        """Create necessary directories with correct permissions."""
-        required_dirs = [
-            self.config["paths"]["telegram_download_dir"],
-            self.config["paths"]["movies_dir"],
-            self.config["paths"]["tv_shows_dir"],
-            self.config["paths"]["unmatched_dir"],
-            self.config["paths"]["temp_download_dir"]
-        ]
-        
-        for dir_path in required_dirs:
-            if not dir_path:
-                continue
-            try:
-                # Convert to absolute path
-                abs_path = os.path.abspath(dir_path)
-                # Create with correct permissions for external access
-                os.makedirs(abs_path, mode=0o755, exist_ok=True)
-                self.logger.info(f"Ensured directory exists: {abs_path}")
-            except OSError as e:
-                self.logger.error(f"Failed to create directory {dir_path}: {e}")
-                raise
-                
-    def _setup_signal_handlers(self) -> None:
-        """Set up handlers for graceful shutdown."""
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            signal.signal(sig, self._handle_shutdown)
-            
-    def _handle_shutdown(self, signum: int, frame: Any) -> None:
-        """Handle shutdown signals."""
-        self.logger.info("Shutdown signal received")
-        asyncio.create_task(self._shutdown())
-        
-    async def _shutdown(self) -> None:
-        """Perform graceful shutdown."""
-        self.logger.info("Starting graceful shutdown")
-        
-        if self.downloader:
-            self.logger.info("Stopping downloader...")
-            await self.downloader.stop()
-            
-        if self.categorizer:
-            self.logger.info("Stopping categorizer...")
-            await self.notification.ensure_token_and_notify(
-                "MediaManager",
-                "Shutting down media manager...",
-                level="info"
-            )
-            
-        await self.notification.stop()
-        self.logger.info("Shutdown complete")
+    """Main application class."""
 
-    async def start(self) -> None:
-        """Start the media manager services."""
+    def __init__(self):
+        """Initialize the application."""
+        self.logger = logging.getLogger("MediaManager")
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+        self.config_manager = ConfigManager(config_path)
+        self.notification_service = NotificationService(self.config_manager)
+        self.media_categorizer = MediaCategorizer(self.config_manager, self.notification_service)
+        
+        # Initialize Telegram components
+        self.telegram_downloader = TelegramDownloader(self.config_manager, self.notification_service)
+        self.telegram_bot = TelegramBot(self.telegram_downloader, self.notification_service)
+
+    async def start(self):
+        """Start the application."""
         try:
-            # Start notification service first
-            await self.notification.start()
+            # First start notification service
+            await self.notification_service.start()
             
-            # Initialize and start media categorizer
-            self.categorizer = MediaCategorizer(self.config_manager, self.notification)
+            # Then start downloader which uses Telethon
+            await self.telegram_downloader.start()
             
-            # Initialize and start downloader
-            self.downloader = TelegramDownloader(self.config_manager, self.notification)
-            await self.downloader.start()
+            # Register media handler from downloader
+            self.notification_service.register_media_handler(self.telegram_downloader._handle_download_command)
             
             self.logger.info("Media Manager started successfully")
             
         except Exception as e:
-            self.logger.error(f"Error starting services: {e}", exc_info=True)
-            await self._shutdown()
+            self.logger.error(f"Failed to start Media Manager: {e}")
+            await self.stop()
             raise
 
+    async def stop(self):
+        """Stop the application."""
+        self.logger.info("Stopping Media Manager")
+        
+        # Stop in reverse order
+        await self.telegram_downloader.stop()
+        await self.notification_service.stop()
+
 async def main():
-    """Main async entry point."""
-    # Initialize Media Manager
+    """Main entry point."""
     media_manager = MediaManager()
-    logger = logging.getLogger(__name__)
+    await media_manager.start()
     
     try:
-        # Start all services
-        await media_manager.start()
-        
-        # Keep the main task running
+        # Keep the application running
         while True:
             await asyncio.sleep(1)
-            
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received")
-        await media_manager._shutdown()
-    except Exception as e:
-        logger.error(f"Unhandled error: {e}", exc_info=True)
-        await media_manager._shutdown()
-        raise
+        await media_manager.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

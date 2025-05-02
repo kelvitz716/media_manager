@@ -82,7 +82,7 @@ class DownloadTask:
                     f"⏱️ Running for: {self._format_duration(elapsed)}",
                     f"✅ Progress: {self.progress_percentage:.1f}% complete",
                     f"💾 Downloaded: {downloaded_mb:.1f} MB / {total_mb:.1f} MB",
-                    f"⚡ Current speed: {speed_text}",
+                    f"⚡ Current speed: {speed_text}"
                 ]
                 if self.eta:
                     hours, remainder = divmod(int(self.eta), 3600)
@@ -107,7 +107,6 @@ class DownloadTask:
             
         if self.status == "completed":
             elapsed = time.time() - self.start_time
-            avg_speed = self.total_size / elapsed if elapsed > 0 else 0
             size_mb = self.total_size / (1024 * 1024)
             
             return (
@@ -115,7 +114,7 @@ class DownloadTask:
                 f"📂 File: {self.filename}\n"
                 f"📊 Size: {size_mb:.1f} MB\n"
                 f"⏱️ Time: {self._format_duration(elapsed)}\n"
-                f"🚀 Avg Speed: {avg_speed/1024:.1f} KB/s\n\n"
+                f"🚀 Avg Speed: {self.speed/1024:.1f} KB/s\n\n"
                 f"Media categorizer will start shortly."
             )
             

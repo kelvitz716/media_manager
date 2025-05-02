@@ -4,11 +4,11 @@ import os
 import signal
 from typing import Dict, Any
 import logging
-from common.config_manager import ConfigManager
-from common.logger_setup import setup_logging
-from common.notification_service import NotificationService
-from downloader.bot import TelegramDownloader
-from watcher.file_mover import MediaWatcher
+from media_manager.common.config_manager import ConfigManager
+from media_manager.common.logger_setup import setup_logging
+from media_manager.common.notification_service import NotificationService
+from media_manager.downloader.bot import TelegramDownloader
+from media_manager.watcher.file_mover import MediaWatcher
 
 class MediaManager:
     """Coordinates media downloading and processing components."""
