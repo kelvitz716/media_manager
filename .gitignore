@@ -57,3 +57,4 @@ htmlcov/
 # Docker
 .docker/
 docker-compose.override.ymldocker-desktop-*.deb
+*.deb
